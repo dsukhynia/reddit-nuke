@@ -88,6 +88,20 @@ async function processSubmissions() {
         await delay(2000);
       } catch (error) {
         console.error(`❌ Error processing submission: ${error.message}`);
+        
+        // Handle 403 Forbidden errors
+        if (error.message.includes("403") || error.message.includes("Forbidden")) {
+          console.error(`⛔ Forbidden error (403): You don't have permission to perform this action.`);
+          console.error(`   This could be due to the content being removed by moderators or Reddit itself.`);
+        }
+        
+        // Handle rate limit exceeded errors
+        if (error.message.includes("429") || error.message.toLowerCase().includes("rate limit") || 
+            error.message.toLowerCase().includes("too many requests")) {
+          console.error(`⏱️  Rate limit exceeded. Waiting for a longer period before continuing...`);
+          // Wait longer before trying the next item
+          await delay(10000); // Wait 10 seconds instead of 2
+        }
       }
     }
     
@@ -167,6 +181,20 @@ async function processComments() {
         await delay(2000);
       } catch (error) {
         console.error(`❌ Error processing comment: ${error.message}`);
+        
+        // Handle 403 Forbidden errors
+        if (error.message.includes("403") || error.message.includes("Forbidden")) {
+          console.error(`⛔ Forbidden error (403): You don't have permission to perform this action.`);
+          console.error(`   This could be due to the comment being removed by moderators or Reddit itself.`);
+        }
+        
+        // Handle rate limit exceeded errors
+        if (error.message.includes("429") || error.message.toLowerCase().includes("rate limit") || 
+            error.message.toLowerCase().includes("too many requests")) {
+          console.error(`⏱️  Rate limit exceeded. Waiting for a longer period before continuing...`);
+          // Wait longer before trying the next item
+          await delay(10000); // Wait 10 seconds instead of 2
+        }
       }
     }
     
@@ -208,8 +236,18 @@ async function main() {
     
     // Verify authentication first
     console.log('\n🔑 Verifying Reddit credentials...');
-    const me = await reddit.getMe();
-    console.log(`✅ Authenticated as: ${me.name}\n`);
+    try {
+      const me = await reddit.getMe();
+      console.log(`✅ Authenticated as: ${me.name}\n`);
+    } catch (error) {
+      if (error.message.includes("403") || error.message.includes("Forbidden")) {
+        throw new Error("Authentication failed: 403 Forbidden. Your account may be suspended or the API access is restricted.");
+      } else if (error.message.includes("429") || error.message.toLowerCase().includes("rate limit")) {
+        throw new Error("Authentication failed: Reddit API rate limit exceeded. Please try again later.");
+      } else {
+        throw error; // Rethrow other errors
+      }
+    }
     
     // Process submissions and get count
     submissionCount = await processSubmissions();
@@ -267,6 +305,18 @@ async function main() {
       console.error("3️⃣ Your Reddit account has two-factor authentication enabled");
       console.error("4️⃣ Your account was temporarily locked due to suspicious activity");
       console.error("\n🔍 Please check your .env file and Reddit account settings.");
+    } else if (error.message.includes("403") || error.message.includes("Forbidden")) {
+      console.error("\n⛔ Forbidden (403) error details:");
+      console.error("1️⃣ Your Reddit account may be suspended");
+      console.error("2️⃣ Your app's API access might have been restricted by Reddit");
+      console.error("3️⃣ Reddit may have detected automated activity on your account");
+      console.error("\n🔍 Check your account status by logging into Reddit directly.");
+    } else if (error.message.includes("429") || error.message.toLowerCase().includes("rate limit")) {
+      console.error("\n⏱️  Rate limit error details:");
+      console.error("1️⃣ Reddit has temporarily limited your API access due to high request volume");
+      console.error("2️⃣ Try again later (typically after 10-15 minutes)");
+      console.error("3️⃣ Consider increasing the delay between API calls");
+      console.error("\n🔍 You can modify the delay time in the code to reduce the chance of hitting rate limits.");
     }
     
     // Show partial statistics if possible
