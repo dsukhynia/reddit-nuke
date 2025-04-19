@@ -66,6 +66,7 @@ async function processSubmissions() {
       
       console.log(smallSeparator);
       console.log(`🔄 [${processed}] Processing submission: ${submission.title}`);
+      console.log(`⏱️  Timestamp: ${new Date(submission.created_utc * 1000).toLocaleString()}`);
       
       try {
         // Edit the submission if it's a self post (text post)
@@ -141,16 +142,40 @@ async function processComments() {
     console.log(`📥 FETCHING BATCH OF COMMENTS (after: ${after || 'start'})`);
     console.log(separator);
     
-    // Get a batch of comments
-    const commentsListing = await reddit.getMe().getComments({
+    // Get a batch of comments - first try without sort option
+    let commentsListing = await reddit.getMe().getComments({
       limit: batchSize,
       after: after
     });
     
-    const comments = await commentsListing;
+    let comments = await commentsListing;
+    
+    // If no comments found, try with 'top' sort
     if (comments.length === 0) {
-      console.log('\n❌ No more comments to process.');
-      break;
+      console.log('\n🔄 No comments found with default sort. Trying with "top" sort...');
+      commentsListing = await reddit.getMe().getComments({
+        limit: batchSize,
+        after: after,
+        sort: 'top'
+      });
+      comments = await commentsListing;
+      
+      // If still no comments, try with 'controversial' sort
+      if (comments.length === 0) {
+        console.log('\n🔄 No comments found with "top" sort. Trying with "controversial" sort...');
+        commentsListing = await reddit.getMe().getComments({
+          limit: batchSize,
+          after: after,
+          sort: 'controversial'
+        });
+        comments = await commentsListing;
+        
+        // If still no comments after all attempts, break out of the loop
+        if (comments.length === 0) {
+          console.log('\n❌ No comments found with any sort option. No more comments to process.');
+          break;
+        }
+      }
     }
     
     console.log(`📋 Found ${comments.length} comments in this batch.\n`);
@@ -163,6 +188,8 @@ async function processComments() {
       
       console.log(smallSeparator);
       console.log(`🔄 [${processed}] Processing comment on: ${comment.link_title}`);
+      console.log(`⏱️  Timestamp: ${new Date(comment.created_utc * 1000).toLocaleString()}`);
+      console.log(`👍 Rating: ${comment.score} points`);
       console.log(`📝 ORIGINAL: "${originalContent}"`);
       console.log(`🔀 REPLACING WITH: "${randomContent}"`);
       
